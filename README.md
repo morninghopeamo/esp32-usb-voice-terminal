@@ -1,3 +1,5 @@
+[简体中文](./README.zh-CN.md)
+
 # ESP32 USB Voice Terminal
 
 A public reference implementation extracted from a completed ESP32-S3 desktop voice-terminal project. It focuses on binary framing, USB serial transport, protocol boundaries, and host-side reliability—not on reproducing a complete voice application.
