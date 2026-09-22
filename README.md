@@ -2,11 +2,17 @@
 
 # ESP32 USB Voice Terminal
 
-A public reference implementation extracted from a completed ESP32-S3 desktop voice-terminal project. It focuses on binary framing, USB serial transport, protocol boundaries, and host-side reliability—not on reproducing a complete voice application.
+**An ESP32-S3 hardware project that gives desktop AI an independent, physical voice terminal.**
 
-The interesting engineering problem is making a byte stream dependable enough for mixed control and audio traffic: defining bounded records, recovering cleanly from fragmented or coalesced reads, validating each protocol boundary, and keeping device-specific behavior separate from reusable host transport code.
+The completed original system previously established this real hardware end-to-end product loop:
 
-This repository contains a portable protocol/transport core for firmware integration and a Node.js host reference. Its current automated verification is **OFFLINE**. It is not a production-ready hardware SDK or current hardware acceptance for a complete voice assistant.
+**Microphone → ESP32-S3 → USB → Desktop → ASR → AI/Agent → TTS → USB → ESP32-S3 → Speaker**
+
+The core engineering challenge is keeping continuous audio and control messages dependable while they share one USB byte stream: bounded framing, recovery from fragmented or coalesced reads, explicit device lifecycle behavior, and host-side testability without a physical device.
+
+This repository is the public engineering version extracted from that completed private system: a reference implementation of the reusable binary framing, USB serial transport, protocol boundaries, and Node.js host-side reliability core. The complete desktop AI application, ASR/TTS integrations, and production configuration are intentionally not included.
+
+Its current automated verification is **OFFLINE**. The real hardware loop above is historical private-system evidence only; it is not current hardware acceptance for this public repository.
 
 ## Architecture
 
