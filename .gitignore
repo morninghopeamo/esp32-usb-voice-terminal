@@ -1,0 +1,27 @@
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Credentials and certificates
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Audio captures and generated runtime data
+*.wav
+*.pcm
+recordings/
+runtime/
+
+# Diagnostics and logs
+logs/
+diagnostics/
+*.log
+
+# Build and dependency outputs
+.pio/
+node_modules/
+coverage/
+tmp/
