@@ -27,7 +27,7 @@ const forbidden = [
 
 function filesUnder(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name === '.git') return [];
+    if (entry.name === '.git' || entry.name === 'node_modules') return [];
     const file = path.join(directory, entry.name);
     return entry.isDirectory() ? filesUnder(file) : [file];
   });

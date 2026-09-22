@@ -2,12 +2,15 @@
   "name": "esp32-usb-voice-terminal",
   "version": "0.1.0",
   "private": false,
-  "description": "Protocol and framing core for an ESP32 USB voice terminal.",
+  "description": "Protocol, framing, and host serial transport for an ESP32 USB voice terminal.",
   "license": "MIT",
   "type": "commonjs",
   "scripts": {
-    "test": "node --test tests/firmware-static-contract.test.cjs tests/playback-volume.test.cjs tests/privacy-scan.test.cjs tests/protocol.test.cjs tests/usb-record-framing.test.cjs",
+    "test": "node --test tests/firmware-static-contract.test.cjs tests/playback-volume.test.cjs tests/privacy-scan.test.cjs tests/protocol.test.cjs tests/serial-transport.test.cjs tests/usb-record-framing.test.cjs",
     "check": "node --test tests/firmware-static-contract.test.cjs tests/privacy-scan.test.cjs"
+  },
+  "dependencies": {
+    "serialport": "^12.0.0"
   },
   "engines": {
     "node": ">=20"
