@@ -6,7 +6,8 @@ const test = require('node:test');
 const { createSerialTransport, normalizeSerialPath } = require('../host/src/serial/serialTransport');
 const { createSerialProtocolBridge } = require('../host/src/serial/serialProtocolBridge');
 const { RECORD_KIND, createUsbRecordDecoder, encodeRecord } = require('../host/src/serial/usbRecordFraming');
-const { parseArgs } = require('../host/bin/voice-terminal');
+const { POWERSHELL_RESET_SCRIPT, resetCh343Esp32 } = require('../host/src/serial/ch343Esp32Reset');
+const { main, parseArgs } = require('../host/bin/voice-terminal');
 
 class FakeSerialPort extends EventEmitter {
   constructor({ openError = null, writeErrors = [] } = {}) {
@@ -50,6 +51,70 @@ test('normalizes Windows COM paths and opens with configured serial parameters',
   assert.equal(transport.getState(), 'open');
   assert.equal(receivedOptions.path, '\\\\.\\COM7');
   assert.equal(receivedOptions.serialOptions.baudRate, 230400);
+  await transport.close();
+});
+
+test('runs an injected reset strategy before operational serial open', async () => {
+  const events = [];
+  let completeReset;
+  const port = new FakeSerialPort();
+  const transport = createSerialTransport({
+    path: 'COM4',
+    reconnect: { enabled: false },
+    resetStrategy: () => new Promise((resolve) => {
+      events.push('reset_started');
+      completeReset = () => { events.push('reset_completed'); resolve(); };
+    }),
+    portFactory: async () => {
+      events.push('operational_open_started');
+      return port;
+    }
+  });
+  const opening = transport.open();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(events, ['reset_started']);
+  completeReset();
+  await opening;
+  assert.deepEqual(events, ['reset_started', 'reset_completed', 'operational_open_started']);
+  await transport.close();
+});
+
+test('uses the exact CH343 ESP32 reset sequence and propagates reset failures', async () => {
+  let invocation;
+  await resetCh343Esp32({
+    path: '\\\\.\\com4',
+    execFileImpl: (command, args, options, callback) => {
+      invocation = { command, args, options };
+      callback(null);
+    }
+  });
+  assert.equal(invocation.command, 'powershell.exe');
+  assert.equal(invocation.args.at(-1), 'COM4');
+  assert.equal(invocation.options.windowsHide, true);
+  assert.equal(invocation.options.timeout, 5000);
+  assert.equal(invocation.args.at(-2), POWERSHELL_RESET_SCRIPT);
+  assert.match(POWERSHELL_RESET_SCRIPT, /\$port\.Open\(\); \$port\.DtrEnable = \$false; \$port\.RtsEnable = \$false; Start-Sleep -Milliseconds 80; \$port\.RtsEnable = \$true; Start-Sleep -Milliseconds 180; \$port\.RtsEnable = \$false; \$port\.DtrEnable = \$false; Start-Sleep -Milliseconds 80 } finally \{ \$port\.Close\(\); \$port\.Dispose\(\) }/);
+  const resetFailure = new Error('reset failed');
+  await assert.rejects(
+    resetCh343Esp32({ path: 'COM4', execFileImpl: (_command, _args, _options, callback) => callback(resetFailure) }),
+    (error) => error.code === 'serial_ch343_esp32_reset_failed' && error.cause === resetFailure
+  );
+});
+
+test('a reset failure prevents the operational port from opening or reporting open state', async () => {
+  let operationalOpenAttempts = 0;
+  const transport = createSerialTransport({
+    path: 'COM4',
+    reconnect: { enabled: false },
+    resetStrategy: async () => { throw new Error('reset failed'); },
+    portFactory: async () => {
+      operationalOpenAttempts += 1;
+      return new FakeSerialPort();
+    }
+  });
+  await assert.rejects(transport.open(), /reset failed/);
+  assert.equal(operationalOpenAttempts, 0);
+  assert.notEqual(transport.getState(), 'open');
   await transport.close();
 });
 
@@ -161,4 +226,28 @@ test('prevents duplicate opens and reports malformed inbound records through the
 test('CLI accepts only an explicit serial path', () => {
   assert.deepEqual(parseArgs(['--port', 'COM4']), { path: 'COM4' });
   assert.throws(() => parseArgs([]), /usage:/);
+});
+
+test('CLI injects the CH343 ESP32 reset strategy into the generic transport', async () => {
+  let options;
+  let resetPath;
+  const transport = {
+    onData: () => () => {},
+    onError: () => () => {},
+    onState: () => () => {},
+    write: async () => {},
+    open: async () => options.resetStrategy({ path: '\\\\.\\COM4' }),
+    close: async () => {},
+    getPath: () => '\\\\.\\COM4'
+  };
+  const messages = [];
+  const result = await main(['--port', 'COM4'], { log: (message) => messages.push(message), error: () => {} }, {
+    transportFactory: (received) => { options = received; return transport; },
+    resetStrategy: async ({ path }) => { resetPath = path; }
+  });
+  assert.equal(options.path, 'COM4');
+  assert.equal(typeof options.resetStrategy, 'function');
+  assert.equal(resetPath, '\\\\.\\COM4');
+  assert.deepEqual(messages, ['reset started', 'reset completed', 'connected \\\\.\\COM4']);
+  await result.shutdown();
 });

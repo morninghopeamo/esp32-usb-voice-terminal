@@ -3,6 +3,7 @@
 
 const { createSerialTransport } = require('../src/serial/serialTransport');
 const { createSerialProtocolBridge } = require('../src/serial/serialProtocolBridge');
+const { resetCh343Esp32 } = require('../src/serial/ch343Esp32Reset');
 
 function parseArgs(args) {
   if (args.length !== 2 || args[0] !== '--port' || !String(args[1]).trim()) {
@@ -11,9 +12,14 @@ function parseArgs(args) {
   return { path: args[1] };
 }
 
-async function main(args = process.argv.slice(2), io = console) {
+async function main(args = process.argv.slice(2), io = console, { transportFactory = createSerialTransport, resetStrategy = resetCh343Esp32 } = {}) {
   const { path } = parseArgs(args);
-  const transport = createSerialTransport({ path });
+  const observedResetStrategy = async (context) => {
+    io.log('reset started');
+    await resetStrategy(context);
+    io.log('reset completed');
+  };
+  const transport = transportFactory({ path, resetStrategy: observedResetStrategy });
   const bridge = createSerialProtocolBridge({
     transport,
     onControl: (message) => io.log(`control ${JSON.stringify(message)}`),
